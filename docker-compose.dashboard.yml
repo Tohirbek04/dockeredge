@@ -1,0 +1,14 @@
+# Optional: Traefik dashboard at https://${TRAEFIK_DASHBOARD_DOMAIN} behind basic auth.
+# Enable by adding to .env:
+#   COMPOSE_FILE=docker-compose.yml:docker-compose.dashboard.yml
+
+services:
+  traefik:
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.traefik-dashboard.rule: "Host(`${TRAEFIK_DASHBOARD_DOMAIN:?set TRAEFIK_DASHBOARD_DOMAIN in .env}`)"
+      traefik.http.routers.traefik-dashboard.entrypoints: "websecure"
+      traefik.http.routers.traefik-dashboard.tls.certresolver: "le"
+      traefik.http.routers.traefik-dashboard.service: "api@internal"
+      traefik.http.routers.traefik-dashboard.middlewares: "traefik-dashboard-auth"
+      traefik.http.middlewares.traefik-dashboard-auth.basicauth.users: "${TRAEFIK_DASHBOARD_AUTH:?set TRAEFIK_DASHBOARD_AUTH in .env}"

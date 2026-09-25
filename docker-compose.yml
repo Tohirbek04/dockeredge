@@ -1,0 +1,90 @@
+# dockeredge — host-level edge stack shared by every app on the server:
+#   traefik    — reverse proxy + automatic Let's Encrypt TLS for all app stacks
+#   watchtower — continuous deployment for containers labelled
+#                com.centurylinklabs.watchtower.enable=true (any project)
+#
+# Apps join the external `shared-network` and route themselves with traefik.*
+# labels — see README.md and examples/. Bootstrap once per server: ./setup.sh
+
+services:
+
+  traefik:
+    image: traefik:${TRAEFIK_VERSION:-v3}
+    container_name: traefik
+    restart: unless-stopped
+    command:
+      - "--api.dashboard=true"
+      - "--ping=true"
+      - "--providers.docker=true"
+      - "--providers.docker.exposedbydefault=false"
+      - "--providers.docker.network=shared-network"
+      - "--entrypoints.web.address=:80"
+      - "--entrypoints.websecure.address=:443"
+      - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
+      - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
+      # Resolver name `le` is the contract app labels rely on
+      # (traefik.http.routers.<name>.tls.certresolver: "le").
+      - "--certificatesresolvers.le.acme.httpchallenge=true"
+      - "--certificatesresolvers.le.acme.httpchallenge.entrypoint=web"
+      - "--certificatesresolvers.le.acme.email=${LETSENCRYPT_EMAIL:?set LETSENCRYPT_EMAIL in .env}"
+      - "--certificatesresolvers.le.acme.storage=/letsencrypt/acme.json"
+      - "--log.level=${TRAEFIK_LOG_LEVEL:-INFO}"
+      - "--accesslog=true"
+      # URL paths can carry secrets (webhook tokens, signed links). Traefik can't
+      # filter per router, so the path is dropped by default. keep | drop | redact
+      - "--accesslog.fields.names.RequestPath=${TRAEFIK_ACCESSLOG_PATH:-drop}"
+      - "--metrics.prometheus=true"
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock:ro"
+      - "./letsencrypt:/letsencrypt"
+    networks:
+      - shared-network
+    healthcheck:
+      test: [ "CMD", "traefik", "healthcheck", "--ping" ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # Watches every container on the host but only touches the opted-in ones
+  # (WATCHTOWER_LABEL_ENABLE) — traefik, databases etc. stay on pinned images.
+  # Default image is the maintained fork of the archived containrrr/watchtower
+  # (same env vars and labels, negotiates the Docker API version itself).
+  watchtower:
+    image: ${WATCHTOWER_IMAGE:-containrrr/watchtower:latest}
+    container_name: watchtower
+    restart: unless-stopped
+    environment:
+      WATCHTOWER_LABEL_ENABLE: "true"
+      WATCHTOWER_POLL_INTERVAL: ${WATCHTOWER_INTERVAL:-300}
+      WATCHTOWER_CLEANUP: "true"
+      WATCHTOWER_INCLUDE_RESTARTING: "true"
+      WATCHTOWER_NOTIFICATION_URL: ${WATCHTOWER_NOTIFICATION_URL:-}
+      # Only needed with an old Watchtower image on Docker Engine 29+; empty = negotiate.
+      DOCKER_API_VERSION: ${WATCHTOWER_DOCKER_API_VERSION:-}
+      # Registry logins managed by ./registry.sh. The directory (not the file) is
+      # mounted: `docker login` replaces config.json atomically, and a single-file
+      # bind mount would keep showing the old inode.
+      DOCKER_CONFIG: /registry
+      TZ: ${TZ:-UTC}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ./registry:/registry:ro
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+networks:
+  shared-network:
+    external: true
+    name: shared-network

@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: shellcheck
+        run: shellcheck setup.sh registry.sh
+
+      - name: compose config — edge stack
+        run: |
+          cp .env.example .env
+          sed -i 's/^LETSENCRYPT_EMAIL=.*/LETSENCRYPT_EMAIL=ci@example.com/' .env
+          docker compose config --quiet
+          TRAEFIK_DASHBOARD_DOMAIN=t.example.com TRAEFIK_DASHBOARD_AUTH='admin:$2y$05$x' \
+            docker compose -f docker-compose.yml -f docker-compose.dashboard.yml config --quiet

@@ -1,0 +1,5 @@
+.env
+letsencrypt/
+registry/
+.idea/
+.venv/
