@@ -20,6 +20,9 @@ services:
       - "--providers.docker.network=shared-network"
       - "--entrypoints.web.address=:80"
       - "--entrypoints.websecure.address=:443"
+      # Traefik v3 defaults readTimeout to 60s, which cuts long uploads and can cut
+      # long-lived WebSockets (e.g. live call audio). 0 = no limit, like Traefik v2.
+      - "--entrypoints.websecure.transport.respondingTimeouts.readTimeout=${TRAEFIK_READ_TIMEOUT:-60s}"
       - "--entrypoints.web.http.redirections.entrypoint.to=websecure"
       - "--entrypoints.web.http.redirections.entrypoint.scheme=https"
       # Resolver name `le` is the contract app labels rely on
