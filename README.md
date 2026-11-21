@@ -155,6 +155,7 @@ as a collaborator on the repo, or open Package settings → Manage access → ad
 | `WATCHTOWER_INTERVAL` | `300` | seconds between update checks |
 | `WATCHTOWER_NOTIFICATION_URL` | — | update notifications, e.g. `telegram://<bot-token>@telegram?chats=<chat-id>` ([formats](https://containrrr.dev/shoutrrr/)) |
 | `TRAEFIK_VERSION` | `v3` | Traefik image tag |
+| `TRAEFIK_READ_TIMEOUT` | `60s` | HTTPS read timeout; `0` = unlimited, for long-lived WebSockets or slow large uploads |
 | `TRAEFIK_ACCESSLOG_PATH` | `drop` | hide URL paths in the access log (they can contain secrets): `keep` / `drop` / `redact` |
 | `TZ` | `UTC` | timezone for logs |
 
